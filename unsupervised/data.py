@@ -23,8 +23,7 @@ def smi_data_iter(smi_path):
             leng_line_strip = len(line.strip())
             if not leng_line_strip:
                 continue
-            _smile = line.strip().split()[0]
-            yield _smile
+            yield line.strip().split()[0]
 
 def build_data_tmp(data_iter, data_path):
     """Build temp data file inside the data_directory. This is required for tensorflow function."""
@@ -40,7 +39,7 @@ def check_output_path(path):
 
 def assert_path_exists(path):
     """Make sure the path exists."""
-    assert os.path.exists(path), "Path does not exist: %s" % path
+    assert os.path.exists(path), f"Path does not exist: {path}"
 
 def build_vocab(smi_path, vocab_path, out_path, tmp_path):
     """Build vocabulary for the given data."""

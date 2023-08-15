@@ -82,12 +82,12 @@ def fp_decode():
 
 def main(_):
     """Entry function for the script."""
-    if FLAGS.action == "sample":
-        sample_decode()
-    elif FLAGS.action == "fp":
+    if FLAGS.action == "fp":
         fp_decode()
+    elif FLAGS.action == "sample":
+        sample_decode()
     else:
-        print("Unsupported action: %s" % FLAGS.action)
+        print(f"Unsupported action: {FLAGS.action}")
 
 if __name__ == "__main__":
     sm.app.run()

@@ -94,7 +94,7 @@ def read_data(source_path, buckets, max_size=None):
             source = source_file.readline()
     return data_set
 
-def train(train_data, test_data): # pylint: disable=too-many-locals
+def train(train_data, test_data):    # pylint: disable=too-many-locals
     """Train script."""
     model_dir = FLAGS.model_dir
     batch_size = FLAGS.batch_size
@@ -111,9 +111,9 @@ def train(train_data, test_data): # pylint: disable=too-many-locals
         model.batch_size = batch_size
 
         # Read data into buckets and compute their sizes.
-        print("Reading train data from %s..." % train_data)
+        print(f"Reading train data from {train_data}...")
         train_set = read_data(train_data, buckets)
-        print("Reading test data from %s..." % test_data)
+        print(f"Reading test data from {test_data}...")
         test_set = read_data(test_data, buckets)
 
         train_bucket_sizes = [len(train_set[b]) for b in xrange(len(buckets))]
@@ -220,7 +220,7 @@ def main(_):
     elif FLAGS.action == "train":
         train(FLAGS.train_data, FLAGS.test_data)
     else:
-        print("Unsupported action: %s" % FLAGS.action)
+        print(f"Unsupported action: {FLAGS.action}")
 
 if __name__ == "__main__":
     sm.app.run()

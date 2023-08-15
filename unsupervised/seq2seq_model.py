@@ -195,7 +195,7 @@ class Seq2SeqModel(object): # pylint: disable=too-many-instance-attributes
     def load_model_from_files(cls, model_file, checkpoint_dir, forward_only, sess=None):
         """Load model from file."""
         hparams = build_base_hparams()
-        print("Loading seq2seq model definition from %s..." % model_file)
+        print(f"Loading seq2seq model definition from {model_file}...")
         with open(model_file, "r") as fobj:
             model_dict = json.load(fobj)
         model_dict["buckets"] = [tuple(_bucket) for _bucket in model_dict["buckets"]]
@@ -205,7 +205,7 @@ class Seq2SeqModel(object): # pylint: disable=too-many-instance-attributes
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         sess = sess or tf.get_default_session()
         if ckpt:
-            print("Loading model weights from checkpoint_dir: %s" % checkpoint_dir)
+            print(f"Loading model weights from checkpoint_dir: {checkpoint_dir}")
             model.saver.restore(sess, ckpt.model_checkpoint_path)
         else:
             print("Initialize fresh parameters...")
@@ -222,18 +222,18 @@ class Seq2SeqModel(object): # pylint: disable=too-many-instance-attributes
     def save_model_to_files(self, model_file, checkpoint_file, sess=None, verbose=False):
         """Save all the model hyper-parameters to a json file."""
         if verbose:
-            print("Save model defintion to %s..." % model_file)
+            print(f"Save model defintion to {model_file}...")
         model_dict = {key: getattr(self, key) for key in self.MODEL_PARAMETER_FIELDS}
         with open(model_file, "w") as fobj:
             json.dump(model_dict, fobj)
         checkpoint_dir = os.path.dirname(checkpoint_file)
         if os.path.exists(checkpoint_dir):
             if verbose:
-                print("Save weights to %s..." % checkpoint_file)
+                print(f"Save weights to {checkpoint_file}...")
             sess = sess or tf.get_default_session()
             self.saver.save(sess, checkpoint_file, global_step=self.global_step)
         elif verbose:
-            print("Skip save weights to %s since the dir does not exist." % checkpoint_dir)
+            print(f"Skip save weights to {checkpoint_dir} since the dir does not exist.")
 
     def save_model_to_dir(self, train_dir, sess=None, verbose=False):
         """Save model definition and weights to train_dir/model.json and train_dir/checkpoints/"""
@@ -252,18 +252,21 @@ class Seq2SeqModel(object): # pylint: disable=too-many-instance-attributes
             prefix = "model_with_buckets/embedding_attention_seq2seq_%d" % bucket_id
         if self.num_layers < 2:
             raise NotImplementedError("Cannot get state name for 1-layer RNN.")
-        cell_prefix = ("%s/rnn/rnn/embedding_wrapper/embedding_wrapper/"
-                       "multi_rnn_cell" % prefix)
+        cell_prefix = (
+            f"{prefix}/rnn/rnn/embedding_wrapper/embedding_wrapper/multi_rnn_cell"
+        )
         n = self.buckets[bucket_id][0]-1
-        encoder_state_names = [
-            "%s/cell_%d/cell_%d/%s/add%s:0" % (
+        return [
+            "%s/cell_%d/cell_%d/%s/add%s:0"
+            % (
                 cell_prefix,
                 cell_id,
                 cell_id,
-                "gru_cell", # In the future, we might have LSTM support.
-                "_%d" % n if n > 0 else ""
-            ) for cell_id in xrange(self.num_layers)]
-        return encoder_state_names
+                "gru_cell",  # In the future, we might have LSTM support.
+                "_%d" % n if n > 0 else "",
+            )
+            for cell_id in xrange(self.num_layers)
+        ]
 
 
     def step(self, session, encoder_inputs, decoder_inputs, target_weights, # pylint: disable=too-many-locals, too-many-arguments, too-many-branches, arguments-differ
@@ -298,10 +301,10 @@ class Seq2SeqModel(object): # pylint: disable=too-many-instance-attributes
             raise ValueError("Weights length must be equal to the one in bucket,"
                              " %d != %d." % (len(target_weights), decoder_size))
 
-        # Input feed: encoder inputs, decoder inputs, target_weights, as provided.
-        input_feed = {}
-        for l in xrange(encoder_size):
-            input_feed[self.encoder_inputs[l].name] = encoder_inputs[l]
+        input_feed = {
+            self.encoder_inputs[l].name: encoder_inputs[l]
+            for l in xrange(encoder_size)
+        }
         for l in xrange(decoder_size):
             input_feed[self.decoder_inputs[l].name] = decoder_inputs[l]
             input_feed[self.target_weights[l].name] = target_weights[l]
@@ -317,8 +320,7 @@ class Seq2SeqModel(object): # pylint: disable=too-many-instance-attributes
                            self.losses[bucket_id]]  # Loss for this batch.
         else:
             output_feed = [self.losses[bucket_id]]  # Loss for this batch.
-            for l in xrange(decoder_size):          # Output logits.
-                output_feed.append(self.outputs[bucket_id][l])
+            output_feed.extend(self.outputs[bucket_id][l] for l in xrange(decoder_size))
             if output_encoder_states:
                 default_graph = tf.get_default_graph()
                 state_names = self._get_encoder_state_names(bucket_id)
@@ -337,7 +339,7 @@ class Seq2SeqModel(object): # pylint: disable=too-many-instance-attributes
         return None, outputs[0], outputs[1:1+decoder_size]
 
 
-    def get_batch(self, data, bucket_id): # pylint: disable=too-many-locals
+    def get_batch(self, data, bucket_id):    # pylint: disable=too-many-locals
         """Get a random batch of data from the specified bucket, prepare for step.
 
         To feed data in step(..) it must be a list of batch-major vectors, while
@@ -374,11 +376,16 @@ class Seq2SeqModel(object): # pylint: disable=too-many-instance-attributes
         batch_encoder_inputs, batch_decoder_inputs, batch_weights = [], [], []
 
         # Batch encoder inputs are just re-indexed encoder_inputs.
-        for length_idx in xrange(encoder_size):
-            batch_encoder_inputs.append(
-                np.array([encoder_inputs[batch_idx][length_idx]
-                          for batch_idx in xrange(self.batch_size)], dtype=np.int32))
-
+        batch_encoder_inputs.extend(
+            np.array(
+                [
+                    encoder_inputs[batch_idx][length_idx]
+                    for batch_idx in xrange(self.batch_size)
+                ],
+                dtype=np.int32,
+            )
+            for length_idx in xrange(encoder_size)
+        )
         # Batch decoder inputs are re-indexed decoder_inputs, we create weights.
         for length_idx in xrange(decoder_size):
             batch_decoder_inputs.append(
@@ -416,14 +423,16 @@ class FingerprintFetcher(object):
     def get_bucket_id(self, token_ids):
         """Determine which bucket should the smile string be placed in."""
         _buckets = self.model.buckets
-        bucket_id = len(_buckets) - 1
-        for i, bucket in enumerate(_buckets):
-            if bucket[0] >= len(token_ids):
-                bucket_id = i
-                break
-        return bucket_id
+        return next(
+            (
+                i
+                for i, bucket in enumerate(_buckets)
+                if bucket[0] >= len(token_ids)
+            ),
+            len(_buckets) - 1,
+        )
 
-    def decode(self, smile_string, sess=None): # pylint: disable=too-many-locals
+    def decode(self, smile_string, sess=None):    # pylint: disable=too-many-locals
         """Input a smile string and will output the fingerprint and predicted output."""
         token_ids = sentence_to_token_ids(
             tf.compat.as_bytes(smile_string), self.vocab,
@@ -442,6 +451,6 @@ class FingerprintFetcher(object):
         if EOS_ID in outputs:
             outputs = outputs[:outputs.index(EOS_ID)]
         output_smile = "".join([tf.compat.as_str(self.rev_vocab[output]) for output in outputs])
-        seq2seq_fp = np.concatenate(tuple([fp.flatten() for fp in fps]))
+        seq2seq_fp = np.concatenate(tuple(fp.flatten() for fp in fps))
         # return the fingerprint and predicted smile.
         return seq2seq_fp, output_smile
